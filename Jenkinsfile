@@ -15,16 +15,27 @@ pipeline {
         stash includes: '**/.aws-sam/**/*', name: 'aws-sam'
       }
     }
-    stage('prod') {
+    stage('Deploy') {
       environment {
         STACK_NAME = 'sam-app-prod-stage'
         S3_BUCKET = 'tools-selection-app'
       }
       steps {
-        withAWS(credentials: 'sam-jenkins-demo-credentials', region: 'us-east-1') {
-          unstash 'venv'
-          unstash 'aws-sam'
-          sh 'venv/bin/sam deploy --stack-name $STACK_NAME -t template.yaml --s3-bucket $S3_BUCKET --capabilities CAPABILITY_IAM'
+        script {
+          def stackStatus = sh(script: 'aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].StackStatus" --output text', returnStatus: true).trim()
+
+          if (stackStatus == "ROLLBACK_COMPLETE") {
+            echo "Stack is in ROLLBACK_COMPLETE state. Deleting the stack..."
+            sh "aws cloudformation delete-stack --stack-name $STACK_NAME"
+            sh "aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME"
+          }
+
+          echo "Deploying the stack..."
+          withAWS(credentials: 'sam-jenkins-demo-credentials', region: 'us-east-1') {
+            unstash 'venv'
+            unstash 'aws-sam'
+            sh 'venv/bin/sam deploy --stack-name $STACK_NAME -t template.yaml --s3-bucket $S3_BUCKET --capabilities CAPABILITY_IAM'
+          }
         }
       }
     }
