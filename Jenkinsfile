@@ -23,7 +23,14 @@ pipeline {
       steps {
         script {
           echo "Checking stack status..."
-          def stackStatus = sh(script: 'aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].StackStatus" --output text', returnStatus: true).trim()
+          def stackStatus = sh(script: 'aws cloudformation describe-stacks --stack-name $STACK_NAME --query "Stacks[0].StackStatus" --output text', returnStatus: true)
+
+          // Check if stackStatus is an integer and convert it to a string if needed
+          if (stackStatus instanceof Integer) {
+              stackStatus = stackStatus.toString()
+          }
+
+          stackStatus = stackStatus?.trim()
 
           if (stackStatus == "ROLLBACK_COMPLETE") {
             echo "Stack is in ROLLBACK_COMPLETE state. Deleting the stack..."
